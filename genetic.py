@@ -11,20 +11,24 @@ do problema do caixeiro viajante das 100 estrelas.
 import numpy as np
 import math
 import random
-import matplotlib.pyplot as plt
+import time
+from plot import *
+from copy import *
 
 # Hiperparametros
 n_stars = 99
-n_population = 700
-n_interations = 200
-mutation_rate = 1
+n_population = 500
+n_interations = 1000
+mutation_rate = 0.01
+
+# Variáveis
 stars = []
 stars_list = np.arange(1,101)
 points = []
 index = 1
 
 
-# função para ler o arquivo com as coordenadas das estrelas
+# Função para ler o arquivo com as coordenadas das estrelas
 def read_file():
     index = 1
     with open('star100.xyz') as file:
@@ -35,22 +39,21 @@ def read_file():
             points.append((float(star[0]), float(star[1]), float(star[2])))
             index += 1 
 
-# Função para criar as populações
+# Função para criar a população inicial
 def genesis(n_population):
     population_set = []
     for _ in range(n_population):
         # Geração de um individuo
-       # tour = [1] + list(np.random.choice(list(range(2, n_stars + 1)), n_stars - 1, replace=False))
         tour = random.sample(range(2, n_stars + 2), 99)
         population_set.append(tour)
     return np.array(population_set)
 
-# função para calcular a distancia entre duas estrelas
+# Função para calcular a distancia entre duas estrelas
 def distance(star1: dict, star2: dict):
     return math.sqrt((star1['x'] - star2['x']) ** 2 + (star1['y'] - star2['y']) ** 2 + (star1['z'] - star2['z']) ** 2)
 
 def dist(star_a, star_b, stars):
-    return distance(stars[star_a], stars[star_b])
+    return distance(stars[int(star_a)], stars[int(star_b)])
 
 # Função para avaliar a aptidão (fitness) de uma solução
 def fitness_eval(stars_list, stars):
@@ -62,66 +65,88 @@ def fitness_eval(stars_list, stars):
     return total
 
 # Obtém a aptidão (fitness) de todas as soluções na população
-def get_all_fitnes(population_set, stars):
-    fitnes_list = np.zeros(n_population)
+def get_all_fitnes(population_set, stars, size):
+    fitnes_list = np.zeros(size)
     
     # Itera sobre todas as soluções, computando a aptidão de cada uma
-    for i in  range(n_population):
+    for i in  range(size):
         fitnes_list[i] = fitness_eval(population_set[i], stars)
 
     return fitnes_list
 
-# Seleção dos progenitores para reprodução
-def progenitor_selection(population_set,fitnes_list):
-    total_fit = fitnes_list.sum()
-    prob_list = fitnes_list/total_fit
-    
-    # Observe que há a chance de um progenitor se reproduzir com ele mesmo
-    progenitor_list_a = np.random.choice(list(range(len(population_set))), len(population_set),p=prob_list, replace=True)
-    progenitor_list_b = np.random.choice(list(range(len(population_set))), len(population_set),p=prob_list, replace=True)
-    
-    progenitor_list_a = population_set[progenitor_list_a]
-    progenitor_list_b = population_set[progenitor_list_b]
-    
-    mutation_rate
-    return np.array([progenitor_list_a,progenitor_list_b])
+def selectParents(population,tournamentSize=3):
+    parents = []
+    fitnessValues = np.zeros(tournamentSize)
 
-# Cruzamento dos progenitores para gerar a nova população
-def mate_progenitors(prog_a, prog_b):
-    offspring = prog_a[0:5]
-
-    for city in prog_b:
-
-        if not city in offspring:
-            offspring = np.concatenate((offspring,[city]))
-
-    return offspring
-                
-# Mutação de uma solução
-def mate_population(progenitor_list):
-    new_population_set = []
-    for i in range(progenitor_list.shape[1]):
-        prog_a, prog_b = progenitor_list[0][i], progenitor_list[1][i]
-        offspring = mate_progenitors(prog_a, prog_b)
-        new_population_set.append(offspring)
-        
-    return new_population_set
-
-# Mutação de uma solução
-def mutate_offspring(offspring):
-    for q in range(int(n_stars*mutation_rate)):
-        a = np.random.randint(0,n_stars)
-        b = np.random.randint(0,n_stars)
-
-        offspring[a], offspring[b] = offspring[b], offspring[a]
-
-    return offspring
+    # Torneio 
+    for _ in range(2):
+        candidates = random.choices(population, k=tournamentSize) 
+        fitnessValues = get_all_fitnes(candidates,stars,tournamentSize)
+        index = np.argmin(fitnessValues)
+        # pegamos a solução com o menor valor de fitness
+        selected_rows = candidates[index]
        
-def mutate_population(new_population_set):
-    mutated_pop = []
-    for offspring in new_population_set:
-        mutated_pop.append(mutate_offspring(offspring))
-    return mutated_pop
+        parents.append(selected_rows)
+    
+    return parents[0], parents[1]
+
+def generateChildren(parent1, parent2):
+    # Dois pontos de crossover para garantir melhor variabilidade
+    crossoverPont1 = random.randint(0, len(parent1)-1)
+    crossoverPont2 = random.randint(0, len(parent1)-1)
+    if crossoverPont2 < crossoverPont1:
+        crossoverPont1, crossoverPont2 = crossoverPont2, crossoverPont1
+
+    # Geração de dois filhos
+
+    part1 = parent1[0:crossoverPont1]
+    aux = crossoverPont1
+    # Verificação para garantir que haja apenas uma estrela em cada indivíduo
+    part2 = []
+    for i in range(crossoverPont1,crossoverPont2):
+        if not parent2[i] in part1:
+            part2.append(parent2[i])
+    
+    child1 = np.concatenate((part1, part2))
+    part3 = []
+    for point in parent1:
+        aux += 1
+        if not point in child1:
+            part3.append(point)
+        
+                
+    child1 = np.concatenate((child1,part3))
+
+    part1 = parent2[0:crossoverPont1]
+    aux = crossoverPont1
+    
+    part2 = []
+    for i in range(crossoverPont1,crossoverPont2):
+        if not parent1[i] in part1:
+            part2.append(parent1[i])
+    
+    child2 = np.concatenate((part1, part2))
+    part3 = []
+    for point in parent2:
+        aux += 1
+        if not point in child2:
+            part3.append(point)
+        
+                
+    child2 = np.concatenate((child2,part3))
+
+    return child1, child2
+
+def mutation(individual):
+    mutatedIndividual = individual.copy()
+
+    for _ in range(len(mutatedIndividual)):
+        if random.random() < mutation_rate:
+            a = np.random.randint(0,n_stars)
+            b = np.random.randint(0,n_stars)
+            mutatedIndividual[a], mutatedIndividual[b] = mutatedIndividual[b], mutatedIndividual[a]
+
+    return mutatedIndividual 
 
 # Função para auxiliar o cálculo da distância percorrida por uma rota para o 2-opt
 def calculate_distance(route):
@@ -153,28 +178,29 @@ def two_opt(route):
 
     return best_route, best_distance
   
+# Execução
 # Chamada das funções para executar o algoritmo genético
 read_file()
-population_set = genesis(n_population)
-fitnes_list = get_all_fitnes(population_set,stars)
-progenitor_list = progenitor_selection(population_set,fitnes_list)
-new_population_set = mate_population(progenitor_list)
-print(new_population_set[0])
-mutated_pop = mutate_population(new_population_set)
-print(mutated_pop[0])
-mutated_pop[0]
+beginAG = time.time() # inicio da contagem de tempo do AG
+population_set = genesis(n_population) 
+fitnes_list = get_all_fitnes(population_set,stars,n_population)
+new_population = population_set
+
 best_solution = [-1,np.inf,np.array([])]
 finder = [np.inf,np.array([])]
 fitnes_mean = [np.inf]
+fitnes_min = [np.inf]
+random.seed(4)
 
 # Loop para realizar cada interação do algoritmo genético
 for i in range(n_interations):
     if i%100==0: print(i, fitnes_list.min(), fitnes_list.mean())
-    fitnes_list = get_all_fitnes(mutated_pop,stars)
+    fitnes_list = get_all_fitnes(new_population,stars,n_population)
     
     fitnes_mean.append(fitnes_list.mean())
+    fitnes_min.append(fitnes_list.min())
     # pegamos a solução com o menor valor de fitness
-    selected_rows = np.array(mutated_pop)[fitnes_list.min() == fitnes_list]
+    selected_rows = np.array(new_population)[fitnes_list.min() == fitnes_list]
     # caso haja mais de uma solução com o mesmo valor de fitness, escolhe uma delas aleatoriamente
     selected_index = np.random.choice(len(selected_rows))
     finder[0] = fitnes_list.min()
@@ -191,19 +217,33 @@ for i in range(n_interations):
         best_solution[1] = finder[0]
         best_solution[2] = finder[1]
 
+    aux = new_population
+    new_population = np.zeros((0,99))
+   
+    # Loop com metade do tamanho da população, pois temos dois filhos
+    for _ in range(n_population//2):
+        father1, father2 = selectParents(aux)
 
-    progenitor_list = progenitor_selection(population_set,fitnes_list)
-    new_population_set = mate_population(progenitor_list)
+        Child1, Child2 = generateChildren(father1, father2)
+        mutateChild1 = mutation(Child1)
+        mutateChild2 = mutation(Child2)
+        new_population = np.vstack((new_population,mutateChild1))
+        new_population = np.vstack((new_population,mutateChild2))
     
-    mutated_pop = mutate_population(new_population_set)
+endAG = time.time() # fim da contagem de tempo do OPT
 
-print(f"teste {best_solution}")
+print(f"Melhor solução AG: {best_solution}")
+#plot_graphic_mean(n_interations,fitnes_mean)
+#plot_graphic_min(n_interations,fitnes_min)
+#plot_fork(stars,best_solution[2])
+
+beginOPT = time.time() # inicio da contagem de tempo do OPT
+# Chamada do algoritmo de otimização 2-opt
 best_solution[2], best_solution[1] = two_opt(best_solution[2])
-print(f"Melhor Solução: {best_solution}")
+endOPT = time.time() # fim da contagem de tempo do OPT
+print(f"Solução otimizada 2-opt: {best_solution}")
 
-# Plot da média dos valores de fitness
-plt.plot(range(n_interations+1), fitnes_mean)
-plt.xlabel('Iterações')
-plt.ylabel('Média do Fitness')
-plt.title('Evolução da Média do Fitness')
-plt.show()
+
+#plot_fork(stars,best_solution[2])
+print("Tempo gasto pelo AG: ",endAG - beginAG)
+print("Tempo gasto pelo OPT: ",endOPT - beginOPT)
